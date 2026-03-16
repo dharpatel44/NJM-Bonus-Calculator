@@ -5,9 +5,15 @@ st.set_page_config(page_title="Store Bonus Calculation", layout="centered")
 st.title("Manager Bonus Entry Form")
 st.write("Enter the 11 required monthly data points below to calculate performance bonuses.")
 
-# Dropdowns for Store and Month
-stores = ["4011", "4018", "4023", "4026", "4045", "4050", "4054"]
-months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+# Dropdowns for Store and Month (Updated with all stores)
+stores = [
+    "4011", "4018", "4023", "4026", "4045", "4050", 
+    "4054", "4065", "4076", "8063", "8066", "8091"
+]
+months = [
+    "January", "February", "March", "April", "May", "June", 
+    "July", "August", "September", "October", "November", "December"
+]
 
 col1, col2 = st.columns(2)
 with col1:
