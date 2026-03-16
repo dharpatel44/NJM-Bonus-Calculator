@@ -1,4 +1,7 @@
 import streamlit as st
+import gspread
+import json
+from datetime import datetime
 
 st.set_page_config(page_title="Store Bonus Calculation", layout="centered")
 
@@ -54,39 +57,34 @@ with col7:
     beverage_cost_pl = st.number_input("Beverage Cost ($)", min_value=0.0, step=100.0)
 with col8:
     hourly_payroll_pl = st.number_input("P&L Hourly Payroll ($)", min_value=0.0, step=100.0)
-    # Note: NOI has no minimum value here, allowing for negative entry
-    net_operating_income = st.number_input("Net Operating Income ($)", step=100.0) 
+    net_operating_income = st.number_input("Net Operating Income ($)", step=100.0)
 
 st.markdown("---")
 
 # Compute and present Results
-if st.button("Calculate Bonuses"):
+if st.button("Calculate & Save to Google Sheets"):
     if total_sales > 0:
-        # 1. P&L Food/Paper/Bev derived
+        # Math calculations
         pl_food_paper_cost = food_cost_pl + paper_cost_pl + beverage_cost_pl
-        
-        # 2. Crunchtime Theoretical derived
         ct_theo_food_paper = theo_food_cost_ct + theo_paper_cost_ct
-        
-        # 3. Required Output Metrics
         delta_dollars = pl_food_paper_cost - ct_theo_food_paper
         delta_percent = delta_dollars / total_sales
         flexepos_labor_percent = hourly_payroll_flex / total_sales
         
-        # 4. Automate Approval Verification based on standard targets
+        # Approvals
         labor_met = flexepos_labor_percent <= TARGET_LABOR
         delta_met = delta_percent <= TARGET_DELTA
         approved = labor_met and delta_met
         
-        # 5. Bonus Pools (NOI maxed at 0 to prevent negative payouts)
+        # Payouts
         noi = max(net_operating_income, 0)
         manager_bonus = noi * 0.075 if approved else 0.0
         ops_partner_bonus = noi * 0.05 if approved else 0.0
         
+        # Show Results on Screen
         st.subheader(f"📊 Recap Calculations: Store {store} - {month}")
         st.write(f"**Net Operating Income:** ${net_operating_income:,.2f}")
         
-        # Display the metrics with visual indicators (✅ or ❌)
         labor_icon = "✅ MET" if labor_met else "❌ MISSED"
         delta_icon = "✅ MET" if delta_met else "❌ MISSED"
         
@@ -95,23 +93,46 @@ if st.button("Calculate Bonuses"):
         
         st.markdown("---")
         
-        # Payout Logic
         if approved:
             if net_operating_income <= 0:
-                # Store hit metrics but lost money
                 st.warning("🌟 **Great job managing your metrics!** You successfully met both the labor and food cost goals. Because the Net Operating Income was below $0, the final bonus pool zeroes out this month, but keep up the excellent work controlling those costs!")
-                st.write("**Manager Bonus (7.5%):** $0.00")
-                st.write("**Operations Partner / Area Director Bonus (5%):** $0.00")
             else:
-                # Store hit metrics and made money
                 st.success("🎉 Store met both metrics and generated positive income! Bonuses approved.")
-                st.write(f"**Manager Bonus (7.5%):** ${manager_bonus:,.2f}")
-                st.write(f"**Operations Partner / Area Director Bonus (5%):** ${ops_partner_bonus:,.2f}")
         else:
-            # Store missed metrics
             st.error("⚠️ Store failed to meet one or both metrics. Bonus pool is zeroed out.")
-            st.write("**Manager Bonus (7.5%):** $0.00")
-            st.write("**Operations Partner / Area Director Bonus (5%):** $0.00")
+            
+        st.write(f"**Manager Bonus (7.5%):** ${manager_bonus:,.2f}")
+        st.write(f"**Operations Partner / Area Director Bonus (5%):** ${ops_partner_bonus:,.2f}")
+
+        # Google Sheets Integration
+        try:
+            # Authenticate using the secret JSON we pasted into Streamlit
+            creds_dict = json.loads(st.secrets["json_key"])
+            gc = gspread.service_account_from_dict(creds_dict)
+            
+            # Open the exact sheet by name and select the first tab
+            sheet = gc.open("Manager Bonus Recaps").sheet1
+            
+            # Create a timestamp
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Send the row of data to the Google Sheet
+            row_data = [
+                timestamp,
+                store,
+                month,
+                f"{flexepos_labor_percent:.2%}",
+                f"{delta_percent:.2%}",
+                f"${net_operating_income:,.2f}",
+                f"${manager_bonus:,.2f}",
+                f"${ops_partner_bonus:,.2f}"
+            ]
+            sheet.append_row(row_data)
+            
+            st.success("☁️ Data successfully securely saved to your Google Sheet Recap!")
+            
+        except Exception as e:
+            st.error(f"Error saving to Google Sheets. Please double check the credentials. Code Error: {e}")
             
     else:
         st.error("Total Royalty Sales must be greater than $0 to calculate percentages.")
