@@ -3,9 +3,9 @@ import streamlit as st
 st.set_page_config(page_title="Store Bonus Calculation", layout="centered")
 
 st.title("Manager Bonus Entry Form")
-st.write("Enter the 11 required monthly data points below to calculate performance bonuses.")
+st.write("Enter the required monthly data points below to calculate performance bonuses.")
 
-# Dropdowns for Store and Month (Updated with all stores)
+# Dropdowns for Store and Month
 stores = [
     "4011", "4018", "4023", "4026", "4045", "4050", 
     "4054", "4065", "4076", "8063", "8066", "8091"
@@ -22,6 +22,10 @@ with col2:
     month = st.selectbox("Month", months)
 
 st.markdown("---")
+
+# Hardcoded targets based on standard company metrics
+TARGET_LABOR = 0.17  # 17.0%
+TARGET_DELTA = 0.02  # 2.0%
 
 # 1. Flexepos Data
 st.header("1. Flexepos Data")
@@ -52,9 +56,7 @@ with col8:
     hourly_payroll_pl = st.number_input("P&L Hourly Payroll ($)", min_value=0.0, step=100.0)
     net_operating_income = st.number_input("Net Operating Income ($)", step=100.0) # Can be negative
 
-# Approval flag identical to placing an "x" on the Recap tab 
 st.markdown("---")
-approved = st.checkbox("Are these metrics approved for bonus payout?")
 
 # Compute and present Results
 if st.button("Calculate Bonuses"):
@@ -70,18 +72,35 @@ if st.button("Calculate Bonuses"):
         delta_percent = delta_dollars / total_sales
         flexepos_labor_percent = hourly_payroll_flex / total_sales
         
-        # 4. Bonus Pools
+        # 4. Automate Approval Verification based on standard targets
+        labor_met = flexepos_labor_percent <= TARGET_LABOR
+        delta_met = delta_percent <= TARGET_DELTA
+        approved = labor_met and delta_met
+        
+        # 5. Bonus Pools
         noi = max(net_operating_income, 0)
         manager_bonus = noi * 0.075 if approved else 0.0
         ops_partner_bonus = noi * 0.05 if approved else 0.0
         
         st.subheader(f"📊 Recap Calculations: Store {store} - {month}")
-        st.write(f"**P&L Actual / CT Theoretical Delta:** {delta_percent:.2%} (${delta_dollars:,.2f})")
-        st.write(f"**Flexepos Labor %:** {flexepos_labor_percent:.2%}")
         st.write(f"**Net Operating Income:** ${noi:,.2f}")
         
-        st.success(f"**Manager Bonus (7.5%):** ${manager_bonus:,.2f}")
-        st.info(f"**Operations Partner Bonus (5%):** ${ops_partner_bonus:,.2f}")
+        # Display the metrics with visual indicators (✅ or ❌)
+        labor_icon = "✅ MET" if labor_met else "❌ MISSED"
+        delta_icon = "✅ MET" if delta_met else "❌ MISSED"
+        
+        st.write(f"**Flexepos Labor %:** {flexepos_labor_percent:.2%} (Goal: $\le$ 17%) {labor_icon}")
+        st.write(f"**P&L Actual / CT Theoretical Delta:** {delta_percent:.2%} (${delta_dollars:,.2f}) (Goal: $\le$ 2%) {delta_icon}")
+        
+        st.markdown("---")
+        if approved:
+            st.success("🎉 Store met both metrics! Bonuses approved.")
+            st.write(f"**Manager Bonus (7.5%):** ${manager_bonus:,.2f}")
+            st.write(f"**Operations Partner / Area Director Bonus (5%):** ${ops_partner_bonus:,.2f}")
+        else:
+            st.error("⚠️ Store failed to meet one or both metrics. Bonus pool is zeroed out.")
+            st.write("**Manager Bonus (7.5%):** $0.00")
+            st.write("**Operations Partner / Area Director Bonus (5%):** $0.00")
+            
     else:
         st.error("Total Royalty Sales must be greater than $0 to calculate percentages.")
-    
