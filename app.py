@@ -54,7 +54,8 @@ with col7:
     beverage_cost_pl = st.number_input("Beverage Cost ($)", min_value=0.0, step=100.0)
 with col8:
     hourly_payroll_pl = st.number_input("P&L Hourly Payroll ($)", min_value=0.0, step=100.0)
-    net_operating_income = st.number_input("Net Operating Income ($)", step=100.0) # Can be negative
+    # Note: NOI has no minimum value here, allowing for negative entry
+    net_operating_income = st.number_input("Net Operating Income ($)", step=100.0) 
 
 st.markdown("---")
 
@@ -77,13 +78,13 @@ if st.button("Calculate Bonuses"):
         delta_met = delta_percent <= TARGET_DELTA
         approved = labor_met and delta_met
         
-        # 5. Bonus Pools
+        # 5. Bonus Pools (NOI maxed at 0 to prevent negative payouts)
         noi = max(net_operating_income, 0)
         manager_bonus = noi * 0.075 if approved else 0.0
         ops_partner_bonus = noi * 0.05 if approved else 0.0
         
         st.subheader(f"📊 Recap Calculations: Store {store} - {month}")
-        st.write(f"**Net Operating Income:** ${noi:,.2f}")
+        st.write(f"**Net Operating Income:** ${net_operating_income:,.2f}")
         
         # Display the metrics with visual indicators (✅ or ❌)
         labor_icon = "✅ MET" if labor_met else "❌ MISSED"
@@ -93,11 +94,21 @@ if st.button("Calculate Bonuses"):
         st.write(f"**P&L Actual / CT Theoretical Delta:** {delta_percent:.2%} (${delta_dollars:,.2f}) (Goal: $\le$ 2%) {delta_icon}")
         
         st.markdown("---")
+        
+        # Payout Logic
         if approved:
-            st.success("🎉 Store met both metrics! Bonuses approved.")
-            st.write(f"**Manager Bonus (7.5%):** ${manager_bonus:,.2f}")
-            st.write(f"**Operations Partner / Area Director Bonus (5%):** ${ops_partner_bonus:,.2f}")
+            if net_operating_income <= 0:
+                # Store hit metrics but lost money
+                st.warning("🌟 **Great job managing your metrics!** You successfully met both the labor and food cost goals. Because the Net Operating Income was below $0, the final bonus pool zeroes out this month, but keep up the excellent work controlling those costs!")
+                st.write("**Manager Bonus (7.5%):** $0.00")
+                st.write("**Operations Partner / Area Director Bonus (5%):** $0.00")
+            else:
+                # Store hit metrics and made money
+                st.success("🎉 Store met both metrics and generated positive income! Bonuses approved.")
+                st.write(f"**Manager Bonus (7.5%):** ${manager_bonus:,.2f}")
+                st.write(f"**Operations Partner / Area Director Bonus (5%):** ${ops_partner_bonus:,.2f}")
         else:
+            # Store missed metrics
             st.error("⚠️ Store failed to meet one or both metrics. Bonus pool is zeroed out.")
             st.write("**Manager Bonus (7.5%):** $0.00")
             st.write("**Operations Partner / Area Director Bonus (5%):** $0.00")
